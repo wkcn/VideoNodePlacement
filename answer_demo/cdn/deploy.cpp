@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <set>
 
 using namespace std;
 
@@ -50,15 +51,36 @@ struct Consumer{
 	int need; // 带宽需求
 };
 
+typedef vector<int> Route;
+typedef vector<Route> Routes;
+typedef vector<int> Sequence;
+
 vector<vector<int> > nodes; // 节点数, 每个节点对应了链路的ID
 vector<Link> links; // 记录链路条数
 vector<Consumer> consumers;
+
+int GetCost(Routes &routes){
+	// 得到真实的代价
+	// 假设routes合法
+	set<int> videoNode;
+	int tot_cost = 0;
+	return tot_cost;
+}
+
+int GetEval(Routes &routes){
+	// 得到估计的代价
+	return GetCost(routes);
+}
+
+void UpdateRoutes(Sequence &seq, Routes &rs){
+	// 使用蚁群算法，计算出较短路径
+}
 
 void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	Reader reader(topo);
 	int nodeNum, linkNum, consumerNum;
 	nodeNum = reader.get_num(); 
-	linkNum = reader.get_num(); 
+linkNum = reader.get_num(); 
 	consumerNum = reader.get_num(); 
 	cout << nodeNum << "|" << linkNum << "|" << consumerNum << endl;
 	int serverCost = reader.get_num(); // 单个视频节点花费
@@ -85,6 +107,7 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 		consumers[i] = e;
 	}
 	// GO
+		
 	// output
 	string res;
     char * topo_file = (char *)res.c_str();
