@@ -99,12 +99,14 @@ int GetRoute(Consumer &cs, Route &r){
 	priority_queue<pair<int, int> > q;
 	q.push(make_pair(0, cs.nodeid));
 	vector<pair<int, int> > lastBestNode(nodeNum, make_pair(INT_MAX, -1));
+	vector<bool> vis(nodeNum, false);
 	bool found = false;
 	int cost = 0;
 	while (!q.empty() && !found){
 		const pair<int,int> &p = q.top();
 		int loss = p.first;
 		int id = p.second;
+		vis[id] = true;
 		q.pop();
 		// 找一个评分最高的节点[链路]
 		vector<int> &ls = nodes[id];
@@ -122,7 +124,8 @@ int GetRoute(Consumer &cs, Route &r){
 					break;
 				}
 			}
-			q.push(make_pair(nloss, tid)); 
+			if (!vis[tid])
+				q.push(make_pair(nloss, tid)); 
 		}
 	}
 	if (found){
