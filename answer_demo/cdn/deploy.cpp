@@ -43,6 +43,9 @@ struct Link{
 	int start, end;
 	int totalBandwidth;
 	int perCost;
+	// 附加信息
+	double pher; // 信息素浓度
+	Link():pher(0.0){}
 };
 
 struct Consumer{
@@ -74,13 +77,15 @@ int GetEval(Routes &routes){
 
 void UpdateRoutes(Sequence &seq, Routes &rs){
 	// 使用蚁群算法，计算出较短路径
+	// 出发点seq
+	int consumerNum = consumers.size();
 }
 
 void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	Reader reader(topo);
 	int nodeNum, linkNum, consumerNum;
 	nodeNum = reader.get_num(); 
-linkNum = reader.get_num(); 
+	linkNum = reader.get_num(); 
 	consumerNum = reader.get_num(); 
 	cout << nodeNum << "|" << linkNum << "|" << consumerNum << endl;
 	int serverCost = reader.get_num(); // 单个视频节点花费
@@ -96,8 +101,8 @@ linkNum = reader.get_num();
 		link.perCost = reader.get_num();
 		links[i] = link; 
 		// 加入链路ID
-		nodes[link.start].push_back(link.end);
-		nodes[link.end].push_back(link.start);
+		nodes[link.start].push_back(i);
+		nodes[link.end].push_back(i);
 	}
 	for (int i = 0;i < consumerNum;++i){
 		Consumer e;
