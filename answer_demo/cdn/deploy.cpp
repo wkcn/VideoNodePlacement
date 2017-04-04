@@ -10,6 +10,7 @@
 #include <set>
 #include <climits>
 #include <stack>
+#include <ctime>
 
 using namespace std;
 
@@ -63,6 +64,7 @@ struct Consumer{
 typedef vector<int> Route;
 typedef vector<Route> Routes;
 typedef vector<int> Sequence;
+typedef vector<Sequence> Sequences;
 
 const int NODE_NUM_MAX = 1010;
 
@@ -201,6 +203,15 @@ int UpdateRoutes(Sequence &seq, Routes &rs){
 	return cost;
 }
 
+void random_seqs(Sequences &seqs){
+}
+void select(Sequences &seqs){
+}
+void crossover(Sequences &seqs){
+}
+void mutate(Sequences &seqs){
+}
+
 void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	Reader reader(topo);
 	nodeNum = reader.get_num(); 
@@ -239,7 +250,19 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	// 调用int UpdateRoutes(Sequence &seq, Routes &rs){
 	// 若函数返回-1, 则不存在这样的路径
 	// 若函数返回正数, 代表实际的代价
+	const int SEQ_NUM = 100;
+	Sequences seqs;
+	random_seqs(seqs);
+	int st_time = time(0);
+	const int TIME_LIMIT = 90 - 20; // max 90s 
+	do{
+		select(seqs); // 选择
+		// 若种群无变化, 退出循环
+		crossover(seqs); // 交叉
+		mutate(seqs); // 变异
+	}while(time(0) - st_time <= TIME_LIMIT);
 	// output
+	// 输出最短路
 	string res;
     char * topo_file = (char *)res.c_str();
     write_result(topo_file, filename);
