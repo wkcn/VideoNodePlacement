@@ -75,6 +75,7 @@ vector<Link> links; // 记录链路条数
 vector<Consumer> consumers;
 bool video_node[NODE_NUM_MAX];
 Link* G[NODE_NUM_MAX][NODE_NUM_MAX];
+const int SEQ_NUM = 100;
 
 int GetCost(Routes &routes){
 	// 得到真实的代价
@@ -204,8 +205,42 @@ int UpdateRoutes(Sequence &seq, Routes &rs){
 }
 
 void random_seqs(Sequences &seqs){
+	seqs.resize(SEQ_NUM);
+	for (Sequence &seq : seqs){
+		int p = 0;
+		while (rand() % nodeNum > p){
+			seq.push_back(rand() % nodeNum);
+			p += rand() % nodeNum;
+		}
+	}
 }
 void select(Sequences &seqs){
+	Sequences rank(SEQ_NUM);
+	vector<int> scores(SEQ_NUM);
+	int k = 0;
+	int tot_score = 0;
+	for (int i = 0;i < SEQ_NUM;++i){
+		Routes rs;
+		Sequence &seq = seqs[i];
+		int score = UpdateRoutes(seq, rs);
+		if (score != -1){
+			// 只保留能生成完整路径的视频节点序列
+			rank[k] = seq;
+			tot_score += score;
+			scores[k] = tot_score;
+			++k;
+		}
+	}
+	rank.resize(k);
+	scores.resize(k);
+	// 使用轮盘赌
+	for (int i = 0;i < SEQ_NUM;++i){
+		int s = rand() % tot_score;
+		int j = 0;
+		while (s > scores[j])++j;
+		// select j
+		seqs[i] = rank[j];
+	}
 }
 void crossover(Sequences &seqs){
 }
@@ -250,7 +285,6 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	// 调用int UpdateRoutes(Sequence &seq, Routes &rs){
 	// 若函数返回-1, 则不存在这样的路径
 	// 若函数返回正数, 代表实际的代价
-	const int SEQ_NUM = 100;
 	Sequences seqs;
 	random_seqs(seqs);
 	int st_time = time(0);
