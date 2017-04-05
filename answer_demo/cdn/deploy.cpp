@@ -63,8 +63,8 @@ struct Consumer{
 
 typedef vector<int> Route;
 typedef vector<Route> Routes;
-typedef vector<int> Sequence;
-typedef vector<Sequence> Sequences;
+typedef vector<int> Sequence;//一组视频节点
+typedef vector<Sequence> Sequences;//一群个体
 
 const int NODE_NUM_MAX = 1010;
 
@@ -74,7 +74,9 @@ vector<vector<int> > nodes; // 节点数, 每个节点对应了链路的ID
 vector<Link> links; // 记录链路条数
 vector<Consumer> consumers;
 bool video_node[NODE_NUM_MAX];
-Link* G[NODE_NUM_MAX][NODE_NUM_MAX];
+int G[NODE_NUM_MAX][NODE_NUM_MAX]; // 映射到link ID
+int bestScore = INT_MAX;// 越小越好
+Sequence bestSeq;
 const int SEQ_NUM = 100;
 
 int GetCost(Routes &routes){
@@ -92,7 +94,6 @@ int GetEval(Routes &routes){
 
 int GetLinkLoss(Link &link){
 	int re = link.remainBandwidth;
-	if (re < 0)return INT_MAX;
 	return link.perCost;
 }
 
@@ -100,11 +101,13 @@ int GetRoute(Consumer &cs, Route &r){
 	// ACO 蚁群算法 (贪心, 非最优解)
 	// 返回是否找到路径
 	priority_queue<pair<int, int> > q;
+	// 从消费节点出发, 找视频节点
 	q.push(make_pair(0, cs.nodeid));
 	vector<pair<int, int> > lastBestNode(nodeNum, make_pair(INT_MAX, -1));
 	vector<bool> vis(nodeNum, false);
 	bool found = false;
 	int cost = 0;
+	int video_id = 0;
 	while (!q.empty() && !found){
 		const pair<int,int> &p = q.top();
 		int loss = p.first;
@@ -116,24 +119,27 @@ int GetRoute(Consumer &cs, Route &r){
 		for (int &t : ls){
 			// t 为链路ID
 			Link &li = links[t];
+			if (li.remainBandwidth <= 0)continue;
 			int tloss = GetLinkLoss(li);
-			if (tloss == INT_MAX)continue;
 			int tid = (li.start != id ? li.start : li.end);
+			if (vis[tid])continue;
+			// id -> tid
 			int nloss = loss + tloss;
 			if (nloss < lastBestNode[tid].first){
-				lastBestNode[tid] = make_pair(nloss, tid);
-				if (tid == cs.nodeid){
+				lastBestNode[tid] = make_pair(nloss, id);
+				if (video_node[tid]){
 					found = true;
+					video_id = tid;
 					break;
 				}
 			}
-			if (!vis[tid])
-				q.push(make_pair(nloss, tid)); 
+			q.push(make_pair(nloss, tid)); 
 		}
 	}
 	if (found){
 		stack<int> st;
-		pair<int,int> &p = lastBestNode[cs.nodeid];
+		pair<int,int> &p = lastBestNode[video_id];
+		st.push(video_id);
 		int t = p.second;
 		while (t != -1){
 			st.push(t);
@@ -142,21 +148,52 @@ int GetRoute(Consumer &cs, Route &r){
 		while (!st.empty()){
 			r.push_back(st.top());st.pop();
 		}
-		r.push_back(cs.nodeid);
+		/*
+		cout << "video" << endl;
+		for (int i = 0;i < NODE_NUM_MAX;++i){
+			if (video_node[i])cout << i << ", ";
+		}	
+		cout << endl;
+		cout << video_id << "===" << cs.nodeid << endl;
+		for (int w : r){
+			cout << w << ", ";
+		}
+		cout << endl;
+		cout << "----" << endl;
+		*/
 		// fill BandWidth
 		int bd = INT_MAX;
-		for (size_t i = 0;i < r.size() - 1;++i){
+		for (int i = 0;i < int(r.size()) - 1;++i){
 			// i, i+1
-			Link &li = *G[r[i]][r[i+1]];
+			Link &li = links[G[r[i]][r[i+1]]];
+			//cout << "li" << r[i] << ":" << r[i+1] << "|" << li.remainBandwidth << "," << li.totalBandwidth << endl;
 			bd = min(bd, li.remainBandwidth); 
+			//cout << bd << "inin" << endl;
 		}
+		/*
+		for (Link &link : links){
+			cout << link.remainBandwidth << ";;;" << endl;
+		}
+		*/
+		//cout << "fend" << endl;
 		bd = min(bd, cs.nowNeed);
-		for (size_t i = 0;i < r.size() - 1;++i){
-			Link &li = *G[r[i]][r[i+1]];
+		//cout << "fffffffffffFF"<< bd << endl;
+		for (int i = 0;i < int(r.size()) - 1;++i){
+			Link &li = links[G[r[i]][r[i+1]]];
 			li.remainBandwidth -= bd;
 			cost += li.perCost * bd;
 		}
 		cs.nowNeed -= bd;
+
+		/*
+		cout << endl;
+		cout << "bd: " << bd << "|cost: " << cost << "#route: " << r.size() << " need: " << cs.nowNeed << endl;
+		for (int w : r){
+			cout << w << ", ";
+		}
+		cout << endl << "===" << endl;
+		cout << endl;
+		*/
 		return cost;
 	}
 	return -1;
@@ -229,6 +266,15 @@ void select(Sequences &seqs){
 			tot_score += score;
 			scores[k] = tot_score;
 			++k;
+			if (score < bestScore){
+				bestScore = score;
+				bestSeq = seq;
+				cout << "BestScore: " << bestScore << endl;
+				for (int u:bestSeq){
+					cout << u << ", ";
+				}
+				cout << endl << endl;
+			}	
 		}
 	}
 	rank.resize(k);
@@ -243,8 +289,37 @@ void select(Sequences &seqs){
 	}
 }
 void crossover(Sequences &seqs){
+	// vector<int>
+	int len=seqs.size();
+	for(int i=0;i<len;++i)
+	{
+		int randindex=rand()%len;
+		int randindex1=rand()%len;
+		int onelen=seqs[randindex].size();
+		int twolen=seqs[randindex1].size();
+		int rand1=rand()%onelen;
+		int rand2=rand()%twolen;
+		int temp=seqs[randindex][rand1];
+		seqs[randindex][rand1]=seqs[randindex1][rand2];
+		seqs[randindex1][rand2]=temp;
+	}
 }
 void mutate(Sequences &seqs){
+	int len=seqs.size();
+	for(int i=0;i<len;++i)
+	{
+		bool add=rand()%2;
+		if(add)
+		{
+			seqs[i].push_back(rand()%nodeNum);
+		}
+		else
+		{
+			int sublen=seqs[i].size();
+			int randindex=rand()%sublen;
+			seqs[i].erase(seqs[i].begin()+randindex);
+		}
+	}
 }
 
 void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
@@ -252,13 +327,13 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	nodeNum = reader.get_num(); 
 	linkNum = reader.get_num(); 
 	consumerNum = reader.get_num(); 
+	cout << "nodeNum | linkNum | consumerNum" << endl;
 	cout << nodeNum << "|" << linkNum << "|" << consumerNum << endl;
 	serverCost = reader.get_num(); // 单个视频节点花费
 	cout << "ServerCost: " << serverCost << endl;
 	nodes.resize(nodeNum);
 	links.resize(linkNum);
 	consumers.resize(consumerNum);
-	memset(G, 0, sizeof(G));
 	for (int i = 0;i < linkNum;++i){
 		Link link;
 		link.start = reader.get_num();
@@ -269,8 +344,8 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 		// 加入链路ID
 		nodes[link.start].push_back(i);
 		nodes[link.end].push_back(i);
-		G[link.start][link.end] = &link;
-		G[link.end][link.start] = &link;
+		G[link.start][link.end] = i;
+		G[link.end][link.start] = i;
 	}
 	for (int i = 0;i < consumerNum;++i){
 		Consumer e;
@@ -288,12 +363,16 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	Sequences seqs;
 	random_seqs(seqs);
 	int st_time = time(0);
-	const int TIME_LIMIT = 90 - 20; // max 90s 
+	const int TIME_LIMIT = 30 - 20; // max 90s 
 	do{
+		//cout << "select" << endl;
 		select(seqs); // 选择
 		// 若种群无变化, 退出循环
+		//cout << "crossover" << endl;
 		crossover(seqs); // 交叉
+		//cout << "mutate" << endl;
 		mutate(seqs); // 变异
+		//cout << time(0) - st_time << endl;
 	}while(time(0) - st_time <= TIME_LIMIT);
 	// output
 	// 输出最短路

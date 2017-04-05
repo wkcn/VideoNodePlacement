@@ -16,6 +16,10 @@ int main(int argc, char *argv[])
     printf("line num is :%d \n", line_num);
     if (line_num == 0)
     {
+		argc = 2;
+		line_num = read_file(topo, MAX_EDGE_NUM, "../../case_example/case0.txt");
+		char result_file[128] = "out.txt";
+		deploy_server(topo, line_num, result_file);
         printf("Please input valid topo file.\n");
         return -1;
     }
