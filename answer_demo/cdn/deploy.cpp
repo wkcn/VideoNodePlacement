@@ -11,6 +11,7 @@
 #include <climits>
 #include <stack>
 #include <ctime>
+#include <sstream>
 
 using namespace std;
 
@@ -101,7 +102,7 @@ int GetLinkLoss(Link &link){
 int GetRoute(Consumer &cs, Route &r){
 	// ACO 蚁群算法 (贪心, 非最优解)
 	// 返回是否找到路径
-	priority_queue<pair<int, int> > q;
+	priority_queue<pair<int, int>, vector<pair<int,int> >, greater<pair<int,int> > > q;
 	// 从消费节点出发, 找视频节点
 	q.push(make_pair(0, cs.nodeid));
 	vector<pair<int, int> > lastBestNode(nodeNum, make_pair(INT_MAX, -1));
@@ -252,21 +253,31 @@ void random_seqs(Sequences &seqs){
 		}
 	}
 }
-void select(Sequences &seqs){
+bool select(Sequences &seqs){
 	Sequences rank(SEQ_NUM);
 	vector<int> scores(SEQ_NUM);
 	int k = 0;
 	int tot_score = 0;
+	int bscore = INT_MAX;
+	int br = 0;
+	int mabr = INT_MIN;
+	bool found = false;
 	for (int i = 0;i < SEQ_NUM;++i){
 		Routes rs;
 		Sequence &seq = seqs[i];
 		int score = UpdateRoutes(seq, rs); // score越小越好
 		if (score != -1){
+			found = true;
 			// 只保留能生成完整路径的视频节点序列
 			rank[k] = seq;
 			tot_score += score;
 			scores[k] = tot_score;
 			++k;
+			mabr = max(mabr, int(seq.size()));
+			if (score < bscore){
+				bscore = score;
+				br = seq.size();
+			}
 			if (score < bestScore){
 				bestScore = score;
 				bestSeq = seq;
@@ -298,6 +309,16 @@ void select(Sequences &seqs){
 		//  注意, 这里是反过来的, 因为score越小越好
 		seqs[i] = rank[k - 1 - j];
 	}
+	cout << "bscore: " << bscore << "||" << br << "mabr: " << mabr << endl;
+	return found;
+}
+int GetNearNode(int id){
+	vector<int> &ns = nodes[id];
+	if (ns.empty())return id;
+	int lid = rand() % ns.size();
+	Link &link = links[lid];
+	int tid = link.start == id ? link.end : link.start;
+	return tid;
 }
 void crossover(Sequences &seqs){
 	// vector<int>
@@ -311,9 +332,14 @@ void crossover(Sequences &seqs){
 			int twolen=seqs[randindex1].size();
 			int rand1=rand()%onelen;
 			int rand2=rand()%twolen;
-			int temp=seqs[randindex][rand1];
-			seqs[randindex][rand1]=seqs[randindex1][rand2];
-			seqs[randindex1][rand2]=temp;
+			if (onelen > 1 && twolen > 1){
+				int temp=seqs[randindex][rand1];
+				seqs[randindex][rand1]=seqs[randindex1][rand2];
+				seqs[randindex1][rand2]=temp;
+			}else{
+				seqs[randindex][rand1] = GetNearNode(seqs[randindex][rand1]);
+				seqs[randindex1][rand2] = GetNearNode(seqs[randindex1][rand2]);
+			}
 		}
 	}
 }
@@ -325,13 +351,25 @@ void mutate(Sequences &seqs){
 			int sublen=seqs[i].size();
 			int randindex=rand()%sublen;
 			seqs[i].erase(seqs[i].begin()+randindex);
-		}else if(add > 95){
-			seqs[i].push_back(rand()%nodeNum);
+		}else if(add > 90){
+			set<int> se;
+			for (int w : seqs[i])se.insert(w); 
+			int t = rand() % nodeNum;
+			for (int u = 0;u < 10;++u){
+				if (!se.count(t)){
+					seqs[i].push_back(t);
+					if (rand() % 4 <= 2)break; 
+					se.insert(t);
+				}else{
+					t = rand() % nodeNum;
+				}
+			}
 		}
 	}
 }
 
 void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
+	srand(time(0));
 	Reader reader(topo);
 	nodeNum = reader.get_num(); 
 	linkNum = reader.get_num(); 
@@ -373,9 +411,18 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	random_seqs(seqs);
 	int st_time = time(0);
 	const int TIME_LIMIT = 90 - 20; // max 90s 
+	bool found = false;
+	int nf_cnt = 0;
 	do{
 		//cout << "select" << endl;
-		select(seqs); // 选择
+		bool fo = select(seqs); // 选择
+		if (fo)found = true;
+		if (!fo && !found){
+			++nf_cnt;
+			if (nf_cnt > 20){
+				// NA
+			}
+		}
 		// 若种群无变化, 退出循环
 		//cout << "crossover" << endl;
 		crossover(seqs); // 交叉
@@ -383,9 +430,18 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 		mutate(seqs); // 变异
 		//cout << time(0) - st_time << endl;
 	}while(time(0) - st_time <= TIME_LIMIT);
-	// output
 	// 输出最短路
-	string res;
-    char * topo_file = (char *)res.c_str();
+	stringstream ss;
+	if (found){
+		ss << bestRoutes.size() << endl << endl; 
+		for (Route &r : bestRoutes){
+			for (int &u : r){
+				cout << u << " ";
+			}
+		}
+	}else{
+		ss << "NA\n";
+	}
+    char * topo_file = (char *)ss.str().c_str();
     write_result(topo_file, filename);
 }
