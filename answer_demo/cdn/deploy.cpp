@@ -12,6 +12,7 @@
 #include <stack>
 #include <ctime>
 #include <sstream>
+#include <algorithm>
 
 using namespace std;
 
@@ -79,6 +80,7 @@ int G[NODE_NUM_MAX][NODE_NUM_MAX]; // 映射到link ID
 int bestScore = INT_MAX;// 越小越好
 Sequence bestSeq;
 Routes bestRoutes;
+vector<int> bestBws;
 const int SEQ_NUM = 300;
 
 int GetCost(Routes &routes){
@@ -99,7 +101,7 @@ int GetLinkLoss(Link &link){
 	return link.perCost;
 }
 
-int GetRoute(Consumer &cs, Route &r){
+int GetRoute(Consumer &cs, Route &r, int &bd){
 	// ACO 蚁群算法 (贪心, 非最优解)
 	// 返回是否找到路径
 	priority_queue<pair<int, int>, vector<pair<int,int> >, greater<pair<int,int> > > q;
@@ -144,12 +146,13 @@ int GetRoute(Consumer &cs, Route &r){
 		st.push(video_id);
 		int t = p.second;
 		while (t != -1){
-			st.push(t);
+		//	st.push(t);
+			r.push_back(t);
 			t = lastBestNode[t].second;
 		}
-		while (!st.empty()){
-			r.push_back(st.top());st.pop();
-		}
+		//while (!st.empty()){
+	//		r.push_back(st.top());st.pop();
+	//	}
 		/*
 		cout << "video" << endl;
 		for (int i = 0;i < NODE_NUM_MAX;++i){
@@ -164,7 +167,7 @@ int GetRoute(Consumer &cs, Route &r){
 		cout << "----" << endl;
 		*/
 		// fill BandWidth
-		int bd = INT_MAX;
+		bd = INT_MAX;
 		for (int i = 0;i < int(r.size()) - 1;++i){
 			// i, i+1
 			Link &li = links[G[r[i]][r[i+1]]];
@@ -196,12 +199,17 @@ int GetRoute(Consumer &cs, Route &r){
 		cout << endl << "===" << endl;
 		cout << endl;
 		*/
+		r.push_back(cs.id);
 		return cost;
 	}
 	return -1;
 }
 
-int UpdateRoutes(Sequence &seq, Routes &rs){
+bool cmp_consumer(const Consumer &a, const Consumer &b){
+	return a.nowNeed <= b.nowNeed;
+}
+
+int UpdateRoutes(Sequence &seq, Routes &rs, vector<int> &bws){
 	// 使用蚁群算法，计算出较短路径
 	// 出发点seq
 	//int consumerNum = consumers.size();
@@ -221,23 +229,31 @@ int UpdateRoutes(Sequence &seq, Routes &rs){
 
 	//const int ANT_NUM = 100;
 	Route route;
-	for (size_t i = 0;i < consumers.size();++i){
-		Consumer &cs = consumers[i];
-		if (cs.nowNeed > 0){
-			// Find route
-			Route r;
-			int co = GetRoute(cs, r);
-			if (co == -1){
-				// NA
-				return -1;
+	bool gogo = true;
+	while(gogo){
+		gogo = false;
+		sort(consumers.begin(), consumers.end(), cmp_consumer);
+		for (size_t i = 0;i < consumers.size();++i){
+			Consumer &cs = consumers[i];
+			if (cs.nowNeed > 0){
+				gogo = true;
+				// Find route
+				Route r;
+				int bd;
+				int co = GetRoute(cs, r, bd);
+				if (co == -1){
+					// NA
+					return -1;
+				}
+				rs.push_back(r);
+				bws.push_back(bd);
+				cost += co;
 			}
-			rs.push_back(r);
-			cost += co;
 		}
 	}
 	/*
-	for (int a = 0;a < ANT_NUM;++a){
-		// 从consumers出发
+	   for (int a = 0;a < ANT_NUM;++a){
+// 从consumers出发
 		//rs.push_back(route);
 	}*/
 	return cost;
@@ -265,7 +281,8 @@ bool select(Sequences &seqs){
 	for (int i = 0;i < SEQ_NUM;++i){
 		Routes rs;
 		Sequence &seq = seqs[i];
-		int score = UpdateRoutes(seq, rs); // score越小越好
+		vector<int> bws;
+		int score = UpdateRoutes(seq, rs, bws); // score越小越好
 		if (score != -1){
 			found = true;
 			// 只保留能生成完整路径的视频节点序列
@@ -282,6 +299,7 @@ bool select(Sequences &seqs){
 				bestScore = score;
 				bestSeq = seq;
 				bestRoutes = rs;
+				bestBws = bws;
 				cout << "BestScore: " << bestScore << endl;
 				cout << "video Node: " << endl;
 				for (int u:bestSeq){
@@ -295,7 +313,7 @@ bool select(Sequences &seqs){
 					}
 					cout << endl;
 				}
-				cout << endl << endl;
+				//cout << endl << endl;
 			}
 		}
 	}
@@ -309,7 +327,7 @@ bool select(Sequences &seqs){
 		//  注意, 这里是反过来的, 因为score越小越好
 		seqs[i] = rank[k - 1 - j];
 	}
-	cout << "bscore: " << bscore << "||" << br << "mabr: " << mabr << endl;
+	//cout << "bscore: " << bscore << "||" << br << "mabr: " << mabr << endl;
 	return found;
 }
 int GetNearNode(int id){
@@ -374,10 +392,10 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	nodeNum = reader.get_num(); 
 	linkNum = reader.get_num(); 
 	consumerNum = reader.get_num(); 
-	cout << "nodeNum | linkNum | consumerNum" << endl;
-	cout << nodeNum << "|" << linkNum << "|" << consumerNum << endl;
+	//cout << "nodeNum | linkNum | consumerNum" << endl;
+	//cout << nodeNum << "|" << linkNum << "|" << consumerNum << endl;
 	serverCost = reader.get_num(); // 单个视频节点花费
-	cout << "ServerCost: " << serverCost << endl;
+	//cout << "ServerCost: " << serverCost << endl;
 	nodes.resize(nodeNum);
 	links.resize(linkNum);
 	consumers.resize(consumerNum);
@@ -434,14 +452,18 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	stringstream ss;
 	if (found){
 		ss << bestRoutes.size() << endl << endl; 
-		for (Route &r : bestRoutes){
+		for (size_t i = 0;i < bestRoutes.size();++i){
+			Route &r = bestRoutes[i];
 			for (int &u : r){
-				cout << u << " ";
+				ss << u << " ";
 			}
+			ss << bestBws[i] << endl;
 		}
 	}else{
 		ss << "NA\n";
 	}
-    char * topo_file = (char *)ss.str().c_str();
+	//cout << "over" << endl;
+	string res = ss.str();
+    char * topo_file = (char *)res.c_str();
     write_result(topo_file, filename);
 }
