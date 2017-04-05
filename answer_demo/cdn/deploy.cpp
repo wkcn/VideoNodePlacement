@@ -77,7 +77,8 @@ bool video_node[NODE_NUM_MAX];
 int G[NODE_NUM_MAX][NODE_NUM_MAX]; // 映射到link ID
 int bestScore = INT_MAX;// 越小越好
 Sequence bestSeq;
-const int SEQ_NUM = 100;
+Routes bestRoutes;
+const int SEQ_NUM = 300;
 
 int GetCost(Routes &routes){
 	// 得到真实的代价
@@ -259,7 +260,7 @@ void select(Sequences &seqs){
 	for (int i = 0;i < SEQ_NUM;++i){
 		Routes rs;
 		Sequence &seq = seqs[i];
-		int score = UpdateRoutes(seq, rs);
+		int score = UpdateRoutes(seq, rs); // score越小越好
 		if (score != -1){
 			// 只保留能生成完整路径的视频节点序列
 			rank[k] = seq;
@@ -269,12 +270,22 @@ void select(Sequences &seqs){
 			if (score < bestScore){
 				bestScore = score;
 				bestSeq = seq;
+				bestRoutes = rs;
 				cout << "BestScore: " << bestScore << endl;
+				cout << "video Node: " << endl;
 				for (int u:bestSeq){
 					cout << u << ", ";
 				}
 				cout << endl << endl;
-			}	
+				cout << "best routes" << endl;
+				for (Route &r : bestRoutes){
+					for (int w : r){
+						cout << w << " <- ";
+					}
+					cout << endl;
+				}
+				cout << endl << endl;
+			}
 		}
 	}
 	rank.resize(k);
@@ -284,8 +295,8 @@ void select(Sequences &seqs){
 		int s = rand() % tot_score;
 		int j = 0;
 		while (s > scores[j])++j;
-		// select j
-		seqs[i] = rank[j];
+		//  注意, 这里是反过来的, 因为score越小越好
+		seqs[i] = rank[k - 1 - j];
 	}
 }
 void crossover(Sequences &seqs){
@@ -293,31 +304,29 @@ void crossover(Sequences &seqs){
 	int len=seqs.size();
 	for(int i=0;i<len;++i)
 	{
-		int randindex=rand()%len;
-		int randindex1=rand()%len;
-		int onelen=seqs[randindex].size();
-		int twolen=seqs[randindex1].size();
-		int rand1=rand()%onelen;
-		int rand2=rand()%twolen;
-		int temp=seqs[randindex][rand1];
-		seqs[randindex][rand1]=seqs[randindex1][rand2];
-		seqs[randindex1][rand2]=temp;
+		if (rand() % 100 > 50){
+			int randindex=rand()%len;
+			int randindex1=rand()%len;
+			int onelen=seqs[randindex].size();
+			int twolen=seqs[randindex1].size();
+			int rand1=rand()%onelen;
+			int rand2=rand()%twolen;
+			int temp=seqs[randindex][rand1];
+			seqs[randindex][rand1]=seqs[randindex1][rand2];
+			seqs[randindex1][rand2]=temp;
+		}
 	}
 }
 void mutate(Sequences &seqs){
 	int len=seqs.size();
-	for(int i=0;i<len;++i)
-	{
-		bool add=rand()%2;
-		if(add)
-		{
-			seqs[i].push_back(rand()%nodeNum);
-		}
-		else
-		{
+	for(int i=0;i<len;++i){
+		int add=rand() % 100;
+		if (add > 80 && seqs[i].size() > 1){
 			int sublen=seqs[i].size();
 			int randindex=rand()%sublen;
 			seqs[i].erase(seqs[i].begin()+randindex);
+		}else if(add > 95){
+			seqs[i].push_back(rand()%nodeNum);
 		}
 	}
 }
@@ -363,7 +372,7 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 	Sequences seqs;
 	random_seqs(seqs);
 	int st_time = time(0);
-	const int TIME_LIMIT = 30 - 20; // max 90s 
+	const int TIME_LIMIT = 90 - 20; // max 90s 
 	do{
 		//cout << "select" << endl;
 		select(seqs); // 选择
