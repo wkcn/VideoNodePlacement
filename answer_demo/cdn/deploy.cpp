@@ -81,7 +81,7 @@ int bestScore = INT_MAX;// 越小越好
 Sequence bestSeq;
 Routes bestRoutes;
 vector<int> bestBws;
-const int SEQ_NUM = 300;
+const int SEQ_NUM = 100;
 
 int GetCost(Routes &routes){
 	// 得到真实的代价
@@ -265,7 +265,7 @@ void random_seqs(Sequences &seqs){
 		int p = 0;
 		while (rand() % nodeNum > p){
 			seq.push_back(rand() % nodeNum);
-			p += rand() % nodeNum;
+			p += rand() % (nodeNum / 2);
 		}
 	}
 }
@@ -317,6 +317,7 @@ bool select(Sequences &seqs){
 			}
 		}
 	}
+	if (!found)return false;
 	rank.resize(k);
 	scores.resize(k);
 	// 使用轮盘赌
@@ -441,12 +442,16 @@ void deploy_server(char * topo[MAX_EDGE_NUM], int line_num,char * filename){
 				// NA
 			}
 		}
-		// 若种群无变化, 退出循环
-		//cout << "crossover" << endl;
-		crossover(seqs); // 交叉
-		//cout << "mutate" << endl;
-		mutate(seqs); // 变异
-		//cout << time(0) - st_time << endl;
+		if (fo){
+			// 若种群无变化, 退出循环
+			//cout << "crossover" << endl;
+			crossover(seqs); // 交叉
+			//cout << "mutate" << endl;
+			mutate(seqs); // 变异
+			//cout << time(0) - st_time << endl;
+		}else{
+			random_seqs(seqs);
+		}
 	}while(time(0) - st_time <= TIME_LIMIT);
 	// 输出最短路
 	stringstream ss;
